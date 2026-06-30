@@ -1,0 +1,6 @@
+resources: [namespace.yaml, ../../base]
+namespace: release-radar
+images:
+  - name: ghcr.io/escarmentb/release-radar
+    newName: ghcr.io/escarmentb/release-radar
+    newTag: latest

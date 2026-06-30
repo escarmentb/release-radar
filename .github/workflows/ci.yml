@@ -1,0 +1,41 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: python -m unittest discover -s tests -v
+      - name: Build immutable image
+        run: docker build --build-arg APP_VERSION=${{ github.sha }} -t release-radar:${{ github.sha }} .
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: release-radar:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+      - name: Validate Kubernetes manifests
+        run: kubectl kustomize k8s/overlays/prod > /dev/null
+      - uses: hashicorp/setup-terraform@v3
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive terraform
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - name: Publish commit and latest tags
+        if: github.event_name == 'push'
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/release-radar
+          docker tag release-radar:${GITHUB_SHA} ${IMAGE}:${GITHUB_SHA}
+          docker tag release-radar:${GITHUB_SHA} ${IMAGE}:latest
+          docker push ${IMAGE}:${GITHUB_SHA}
+          docker push ${IMAGE}:latest

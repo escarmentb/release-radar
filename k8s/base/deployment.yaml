@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: release-radar
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: release-radar }
+  template:
+    metadata:
+      labels: { app: release-radar }
+      annotations: { prometheus.io/scrape: "true", prometheus.io/port: "8080", prometheus.io/path: /metrics }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: api
+          image: ghcr.io/escarmentb/release-radar:latest
+          ports: [{ name: http, containerPort: 8080 }]
+          env: [{ name: ENVIRONMENT, value: kubernetes }]
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 128Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, initialDelaySeconds: 5 }
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, initialDelaySeconds: 2 }
+          startupProbe: { httpGet: { path: /health/live, port: http }, failureThreshold: 12, periodSeconds: 2 }
