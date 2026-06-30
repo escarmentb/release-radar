@@ -1,11 +1,11 @@
-# Release Radar 🚀
+# Release Radar 
 
 [![CI](https://github.com/escarmentb/release-radar/actions/workflows/ci.yml/badge.svg)](https://github.com/escarmentb/release-radar/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/escarmentb/release-radar/actions/workflows/codeql.yml/badge.svg)](https://github.com/escarmentb/release-radar/actions/workflows/codeql.yml)
 
 A production-minded DevOps portfolio project: a dependency-free Python service shipped as a hardened container, observed with Prometheus and Grafana, validated in CI, and ready for Kubernetes.
 
-## What this demonstrates
+## What this does
 
 - **CI/CD:** tests, immutable image builds, Trivy vulnerability gates, CodeQL, and publishing to GHCR
 - **Cloud-native operations:** health probes, resource bounds, autoscaling, disruption budgets, network policy, and Kustomize overlays
@@ -81,20 +81,6 @@ terraform apply
 
 AWS credentials and any resulting cloud charges remain your responsibility. Run `terraform destroy` when you no longer need the repository (it refuses deletion while images remain).
 
-## Portfolio talking points
-
-> I built Release Radar to demonstrate the full path from commit to observable workload. Pull requests are tested and security-scanned, images are traceable to a commit SHA, and the runtime is designed around least privilege and Kubernetes reliability primitives. I also made the entire stack reproducible locally so reviewers can run it with one command.
-
-
->
->
-> I focused less on application complexity and more on the delivery system: GitHub Actions CI/CD, Trivy and CodeQL security gates, hardened Docker images, Kubernetes health probes and autoscaling, Prometheus metrics, and a provisioned Grafana dashboard.
->
-> My favorite part was treating observability and security as release requirements—not afterthoughts. The complete project runs locally with one Docker Compose command and deploys through Kustomize.
->
-> Repo: [add your GitHub URL]
->
-> #DevOps #Kubernetes #Docker #CICD #SRE #CloudNative #GitHubActions
 
 ## License
 
