@@ -1,15 +1,29 @@
 import json
 import os
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 STARTED = time.time()
 REQUESTS = {}
+REQUESTS_LOCK = threading.Lock()
+
+
+def metric_path(raw_path):
+    parsed = urlsplit(raw_path)
+    return parsed.path or "/"
+
+
+def prometheus_label(value):
+    return str(value).replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
 
 
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status, body, content_type="application/json"):
-        REQUESTS[(self.command, self.path, status)] = REQUESTS.get((self.command, self.path, status), 0) + 1
+        request_key = (self.command, metric_path(self.path), status)
+        with REQUESTS_LOCK:
+            REQUESTS[request_key] = REQUESTS.get(request_key, 0) + 1
         payload = body if isinstance(body, bytes) else body.encode()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -19,18 +33,19 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
-        if self.path == "/":
+        path = metric_path(self.path)
+        if path == "/":
             self._send(200, json.dumps({
                 "service": "release-radar",
                 "version": os.getenv("APP_VERSION", "dev"),
                 "environment": os.getenv("ENVIRONMENT", "local"),
                 "message": "Ship confidently. Observe everything."
             }))
-        elif self.path == "/health/live":
+        elif path == "/health/live":
             self._send(200, '{"status":"alive"}')
-        elif self.path == "/health/ready":
+        elif path == "/health/ready":
             self._send(200, '{"status":"ready"}')
-        elif self.path == "/metrics":
+        elif path == "/metrics":
             lines = [
                 "# HELP release_radar_uptime_seconds Process uptime.",
                 "# TYPE release_radar_uptime_seconds gauge",
@@ -38,8 +53,16 @@ class Handler(BaseHTTPRequestHandler):
                 "# HELP release_radar_http_requests_total HTTP requests.",
                 "# TYPE release_radar_http_requests_total counter",
             ]
-            for (method, path, status), count in REQUESTS.items():
-                lines.append(f'release_radar_http_requests_total{{method="{method}",path="{path}",status="{status}"}} {count}')
+            with REQUESTS_LOCK:
+                requests = sorted(REQUESTS.items())
+            for (method, path, status), count in requests:
+                lines.append(
+                    "release_radar_http_requests_total{"
+                    f'method="{prometheus_label(method)}",'
+                    f'path="{prometheus_label(path)}",'
+                    f'status="{prometheus_label(status)}"'
+                    f"}} {count}"
+                )
             self._send(200, "\n".join(lines) + "\n", "text/plain; version=0.0.4")
         else:
             self._send(404, '{"error":"not found"}')
