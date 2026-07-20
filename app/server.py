@@ -20,7 +20,7 @@ def prometheus_label(value):
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _send(self, status, body, content_type="application/json"):
+    def _send(self, status, body, content_type="application/json", include_body=True):
         request_key = (self.command, metric_path(self.path), status)
         with REQUESTS_LOCK:
             REQUESTS[request_key] = REQUESTS.get(request_key, 0) + 1
@@ -30,7 +30,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
-        self.wfile.write(payload)
+        if include_body:
+            self.wfile.write(payload)
 
     def do_GET(self):
         path = metric_path(self.path)
@@ -66,6 +67,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, "\n".join(lines) + "\n", "text/plain; version=0.0.4")
         else:
             self._send(404, '{"error":"not found"}')
+
+    def do_HEAD(self):
+        path = metric_path(self.path)
+        if path == "/":
+            self._send(200, "{}", include_body=False)
+        elif path in {"/health/live", "/health/ready"}:
+            self._send(200, '{"status":"ok"}', include_body=False)
+        elif path == "/metrics":
+            self._send(200, "", "text/plain; version=0.0.4", include_body=False)
+        else:
+            self._send(404, '{"error":"not found"}', include_body=False)
 
     def log_message(self, fmt, *args):
         print(json.dumps({"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "message": fmt % args}))

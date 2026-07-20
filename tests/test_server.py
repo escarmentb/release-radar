@@ -5,7 +5,7 @@ import threading
 import unittest
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.server import Handler, REQUESTS, REQUESTS_LOCK, metric_path, prometheus_label
@@ -31,6 +31,13 @@ class ApiTest(unittest.TestCase):
         for path in ("/health/live", "/health/ready", "/metrics"):
             with urlopen(self.base + path) as response:
                 self.assertEqual(response.status, 200)
+
+    def test_head_health_checks(self):
+        request = Request(self.base + "/health/ready", method="HEAD")
+
+        with urlopen(request) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.read(), b"")
 
     def test_metrics_normalize_query_strings(self):
         with REQUESTS_LOCK:
