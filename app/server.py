@@ -10,6 +10,16 @@ REQUESTS = {}
 REQUESTS_LOCK = threading.Lock()
 
 
+def service_metadata():
+    return {
+        "service": "release-radar",
+        "version": os.getenv("APP_VERSION", "dev"),
+        "environment": os.getenv("ENVIRONMENT", "local"),
+        "region": os.getenv("REGION", "local"),
+        "commit": os.getenv("GIT_SHA", "unknown"),
+    }
+
+
 def metric_path(raw_path):
     parsed = urlsplit(raw_path)
     return parsed.path or "/"
@@ -36,12 +46,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = metric_path(self.path)
         if path == "/":
+            metadata = service_metadata()
             self._send(200, json.dumps({
-                "service": "release-radar",
-                "version": os.getenv("APP_VERSION", "dev"),
-                "environment": os.getenv("ENVIRONMENT", "local"),
+                **metadata,
                 "message": "Ship confidently. Observe everything."
             }))
+        elif path == "/version":
+            self._send(200, json.dumps(service_metadata()))
         elif path == "/health/live":
             self._send(200, '{"status":"alive"}')
         elif path == "/health/ready":
@@ -51,6 +62,15 @@ class Handler(BaseHTTPRequestHandler):
                 "# HELP release_radar_uptime_seconds Process uptime.",
                 "# TYPE release_radar_uptime_seconds gauge",
                 f"release_radar_uptime_seconds {time.time() - STARTED:.3f}",
+                "# HELP release_radar_build_info Release metadata.",
+                "# TYPE release_radar_build_info gauge",
+                "release_radar_build_info{"
+                f'service="{prometheus_label(service_metadata()["service"])}",'
+                f'version="{prometheus_label(service_metadata()["version"])}",'
+                f'environment="{prometheus_label(service_metadata()["environment"])}",'
+                f'region="{prometheus_label(service_metadata()["region"])}",'
+                f'commit="{prometheus_label(service_metadata()["commit"])}"'
+                "} 1",
                 "# HELP release_radar_http_requests_total HTTP requests.",
                 "# TYPE release_radar_http_requests_total counter",
             ]
@@ -70,7 +90,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         path = metric_path(self.path)
-        if path == "/":
+        if path in {"/", "/version"}:
             self._send(200, "{}", include_body=False)
         elif path in {"/health/live", "/health/ready"}:
             self._send(200, '{"status":"ok"}', include_body=False)

@@ -8,7 +8,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from app.server import Handler, REQUESTS, REQUESTS_LOCK, metric_path, prometheus_label
+from app.server import Handler, REQUESTS, REQUESTS_LOCK, metric_path, prometheus_label, service_metadata
 
 
 class ApiTest(unittest.TestCase):
@@ -31,6 +31,23 @@ class ApiTest(unittest.TestCase):
         for path in ("/health/live", "/health/ready", "/metrics"):
             with urlopen(self.base + path) as response:
                 self.assertEqual(response.status, 200)
+
+    def test_version_endpoint(self):
+        with urlopen(self.base + "/version") as response:
+            body = json.load(response)
+
+        self.assertEqual(body["service"], "release-radar")
+        self.assertEqual(body["version"], service_metadata()["version"])
+        self.assertIn("environment", body)
+        self.assertIn("region", body)
+        self.assertIn("commit", body)
+
+    def test_metrics_include_build_info(self):
+        with urlopen(self.base + "/metrics") as response:
+            body = response.read().decode()
+
+        self.assertIn("release_radar_build_info", body)
+        self.assertIn('service="release-radar"', body)
 
     def test_head_health_checks(self):
         request = Request(self.base + "/health/ready", method="HEAD")
